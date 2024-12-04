@@ -25,29 +25,6 @@ def is_valid_csv():
     if not os.path.exists('etc.csv'):
         raise FileNotFoundError("파일이 없습니다")
 
-# etc.csv에 미분류된 항목의 이름 초기화.
-def initialize_uncategorized_in_etc():
-
-    uncategorized_income = "*미지정 수입"
-    uncategorized_expense = "*미지정 지출"
-    etc_data = []
-
-    # etc.csv 읽기
-    with open('etc.csv', 'r', encoding='utf-8') as file:
-        reader = csv.reader(file)
-        for row in reader:
-            etc_data.append(row)
-
-    # 미분류 이름 추가
-    if "#" not in [row[0] for row in etc_data if row]:
-        etc_data.append(["#"])
-        etc_data.append(["수입", uncategorized_income])
-        etc_data.append(["지출", uncategorized_expense])
-
-        with open('etc.csv', 'w', encoding='utf-8', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerows(etc_data)
-    return uncategorized_income, uncategorized_expense
 
 def read_etc_price():
     with open('etc.csv', 'r', encoding='utf-8') as file:
@@ -907,12 +884,23 @@ is_valid_csv()
 
 # 카테고리에 미분류 항목 추가
 def add_uncategorized_to_category_csv():
+    # etc.csv에서 미분류 항목 읽기
+    uncategorized_income, uncategorized_expense = None, None
+    with open('etc.csv', 'r', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        for row in reader:
+            if row[0] == "수입":
+                uncategorized_income = row[1]
+            elif row[0] == "지출":
+                uncategorized_expense = row[1]
 
-    uncategorized_income, uncategorized_expense = initialize_uncategorized_in_etc()
-    income_categories = []
-    expense_categories = []
+    if not uncategorized_income or not uncategorized_expense:
+        print("오류: etc.csv에 미분류 항목이 정의되지 않았습니다.")
+        return
 
     # category.csv 읽기
+    income_categories = []
+    expense_categories = []
     with open('category.csv', 'r', encoding='utf-8') as file:
         reader = csv.reader(file)
         is_expense_section = False
@@ -925,7 +913,7 @@ def add_uncategorized_to_category_csv():
             else:
                 income_categories.append(row[0].strip())
 
-    # 미분류 항목 추가
+    # category.csv 업데이트
     with open('category.csv', 'w', encoding='utf-8', newline='') as file:
         writer = csv.writer(file)
         for category in income_categories:
@@ -938,9 +926,22 @@ def add_uncategorized_to_category_csv():
         if uncategorized_expense not in expense_categories:
             writer.writerow([uncategorized_expense, "0"])
 
-def add_to_uncategorized(file_name, row, category_type):
 
-    uncategorized_income, uncategorized_expense = initialize_uncategorized_in_etc()
+def add_to_uncategorized(file_name, row, category_type):
+    # etc.csv에서 미분류 항목 읽기
+    uncategorized_income, uncategorized_expense = None, None
+    with open('etc.csv', 'r', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        for line in reader:
+            if line[0] == "수입":
+                uncategorized_income = line[1]
+            elif line[0] == "지출":
+                uncategorized_expense = line[1]
+
+    if not uncategorized_income or not uncategorized_expense:
+        print("오류: etc.csv에 미분류 항목이 정의되지 않았습니다.")
+        return
+
     uncategorized_category = uncategorized_income if category_type == "income" else uncategorized_expense
 
     # 금액 가져오기
@@ -1031,7 +1032,7 @@ def update_uncategorized_name(new_income_name, new_expense_name):
         writer.writerows(etc_data)
 
     # category.csv 업데이트
-    add_uncategorized_to_category_csv()
+    # add_uncategorized_to_category_csv()
 
     # income.csv와 expense.csv에서 비어 있는 카테고리와 기존 이름 업데이트
     process_empty_categories('income.csv', new_income_name, uncategorized_income, new_income_name)
