@@ -397,6 +397,22 @@ def print_date():
         i.append('지출')
         list1.append(i)
     plist.extend(list1)
+    for i in plist:
+        elist=[]
+        for j in i[3:]:
+            if ']' in j:
+                if '[' not in j:
+                    elist.append(j[:len(j)-1])
+                else:
+                    elist.append(j[1:len(j)-1])
+                i.remove(j)
+                break
+            if '[' in j:
+                elist.append(j[1:])
+            else:
+                elist.append(j)
+            i.remove(j)
+        i.insert(3, elist)
     plist = sorted(plist, key=lambda plist: (plist[1], plist[0]))
     f.close()
     f1.close()
@@ -452,7 +468,6 @@ def print_date():
                 plist.remove(i)
                 
     
-    
     count=1
 
     print('\n번호  날짜  수입액 지출액 [카테고리(들)] 사유')
@@ -464,18 +479,8 @@ def print_date():
             print(i[2]+'    ', end=' ')
         else:
             print('    '+i[2], end=' ')
-        for j in i[3:]:
-            if ']' in j:
-                if '[' not in j:
-                    print(','+j, end=' ')
-                else:
-                    print(j, end=' ')
-                break
-            if '[' in j:
-                print(j, end='')
-            else:
-                print(','+j, end='')
-        if ']' not in i[len(i)-2]:
+        print(i[3], end=' ')
+        if len(i)==6:
             print(i[len(i)-2])
         else:
             print()
