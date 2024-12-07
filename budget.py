@@ -183,21 +183,62 @@ def category_list_print():
 
 # 카테고리 편집 함수
 def change_category():
-    # 카테고리 목록 출력 및 선택
-    display_items = category_list_print()
+    category_items = []  # 수입 및 지출 카테고리 리스트
+    display_items = []   # 출력할 항목만 저장하는 리스트
+    income_items = []    # income 항목 리스트
+    expense_items = []   # expense 항목 리스트
+    current_section = 'income'
+    index = 1
+
+    # CSV 파일 읽기 및 항목 추가
+    with open('category.csv', 'r', encoding='utf-8') as file:
+        reader = csv.reader(file)
+        for row in reader:
+            if row:  # 비어있지 않은 행에 대해서만 처리
+                if row[0].strip() == '#':
+                    current_section = 'expense'
+                else:
+                    item = {
+                        'index': index,
+                        'section': current_section,
+                        'name': row[0].strip(),
+                        'amount': row[1].strip()
+                    }
+                    if current_section == 'income':
+                        income_items.append(item)
+                    else:
+                        expense_items.append(item)
+                    if not item['name'].startswith('*'):  # "*"로 시작하지 않는 항목만 출력 리스트에 추가
+                        display_items.append(item)
+                    index += 1
+
+    # 결과 출력
+    print("\n카테고리 목록")
+    for i, item in enumerate(display_items, start=1):
+        print(f"{i}. {item['name']} ({'수입' if item['section'] == 'income' else '지출'})")
 
     # 수정할 항목 선택 및 이름 수정
     try:
-        choice = int(input("\n수정할 항목 번호를 선택해주세요: ")) - 1
-        if choice < 0 or choice >= len(display_items):
+        choices = list(map(int, input("\n수정 및 병합 할 항목을 선택해주세요: ").split(',')))
+        if any(choice < 1 or choice > len(display_items) for choice in choices):
             print("잘못된 번호입니다. 메인 메뉴로 돌아갑니다.")
             return()  # 프로그램 종료
+        selected_items = [display_items[choice - 1] for choice in choices]  # display_items에서 선택된 항목 가져오기
+        selected_indices = [choice - 1 for choice in choices]  # 선택된 항목의 인덱스
+        print(selected_indices)
     except ValueError:
         print("유효한 번호를 입력해주세요. 메인 메뉴로 돌아갑니다.")
         return()  # 프로그램 종료
 
+    # 선택한 항목의 section 검증
+    section_set = {item['section'] for item in selected_items}
+    if len(section_set) > 1:
+        print("수입과 지출 항목을 동시에 병합할 수 없습니다. 메인 메뉴로 돌아갑니다.")
+        return
+
     # 선택된 항목 수정
-    old_name = display_items[choice]['name']
+    old_name = selected_items[0]['name']
+    old_names = []  # old_name을 리스트로 저장
     new_name = input("새로운 항목 이름을 입력해주세요: ")
     if not re.match(r'^[a-zA-Z가-힣0-9 ]*$', new_name):
         print("유효한 이름을 입력해주세요. 메인 메뉴로 돌아갑니다.")
@@ -205,46 +246,63 @@ def change_category():
     if new_name == old_name:
         print("기존과 이름이 동일합니다. 메인 메뉴로 돌아갑니다.")
         return  # 프로그램 종료
+    
+    new_amount = 0
+    for choice in choices:
+        item_index = choice - 1
+        selected_item = display_items[item_index]
+        new_amount += int(selected_item['amount'])
 
-    display_items[choice]['name'] = new_name
+        # old_name 리스트에 name을 추가
+        old_names.append(selected_item['name'])
 
-    # 수정된 항목을 원래 category.csv 파일에 반영
-    category_items = []
-    with open('category.csv', 'r', encoding='utf-8') as file:
-        reader = csv.reader(file)
-        current_section = 'income'
-        for row in reader:
-            if row:  # 비어있지 않은 행에 대해서만 처리
-                if row[0].strip() == '#':
-                    current_section = 'expense'
-                else:
-                    item = {
-                        'section': current_section,
-                        'name': row[0].strip(),
-                        'amount': row[1].strip()
-                    }
-                    category_items.append(item)
+    # 삭제된 항목 출력
+    print("\n삭제된 항목:")
+    deleted_sections = []
+    for index in sorted(selected_indices, reverse=True):  # 역순으로 삭제
+        removed_item = display_items.pop(index)  # display_items에서 삭제
+        # category_items에서 정확한 항목을 찾아서 삭제
+        for category_item in category_items:
+            if category_item['name'] == removed_item['name'] and category_item['amount'] == removed_item['amount'] and category_item['section'] == removed_item['section']:
+                category_items.remove(category_item)
+                break
+        if removed_item['section'] == 'income':
+            income_items.remove(removed_item)
+        else:
+            expense_items.remove(removed_item)
+        deleted_sections.append(removed_item['section'])  # 삭제된 항목의 section 저장
+        print(f"{removed_item['name']} ({'수입' if removed_item['section'] == 'income' else '지출'})")  
 
-    for item in category_items:
-        if item['name'] == old_name:
-            item['name'] = new_name
-            break
+    if deleted_sections:
+        new_item = {
+            'name': new_name,
+            'amount': new_amount
+        }
+        if deleted_sections[0] == 'income':
+            income_items.append(new_item)
+        else:
+            expense_items.insert(0, new_item)  # expense는 파일에 # 아래 추가되므로 리스트 맨 앞에 삽입
+    
+    filename = display_items[choices[0]-1]['section'] + '.csv'
 
     # 수정된 내용 저장
     with open('category.csv', 'w', encoding='utf-8', newline='') as file:
         writer = csv.writer(file)
         current_section = None
-        for item in category_items:
-            if item['section'] != current_section:
-                current_section = item['section']
-                if current_section == 'expense':
-                    writer.writerow(['#'])
+        for item in income_items:
+            writer.writerow([item['name'], item['amount']])
+        # 구분자 추가
+        writer.writerow(['#'])
+        # expense 섹션 작성
+        for item in expense_items:
             writer.writerow([item['name'], item['amount']])
 
-    filename = display_items[choice]['section'] + '.csv'
-    update_csv(filename, old_name, new_name)
-    print("항목이 성공적으로 수정되었습니다!")
+    print(old_names)
 
+    # old_name 리스트를 순회하며 update_csv 실행
+    for old_name_item in old_names:
+        update_csv(filename, old_name_item, new_name)
+    print("항목이 성공적으로 수정되었습니다!")
 
 # 카테고리 변경으로 인한 csv 업데이트
 def update_csv(file_name, old_category, new_category):
@@ -255,9 +313,17 @@ def update_csv(file_name, old_category, new_category):
         reader = csv.reader(file)
         for row in reader:
             if row:
-                # 카테고리가 정확히 일치하는 경우에만 변경
-                if len(row) > 2 and row[2] == old_category:
-                    row[2] = new_category
+                if len(row) > 2 and old_category in row[2]:
+                    # row[2]에서 ','를 기준으로 각 카테고리 분리
+                    categories = row[2][1:-1].split(',')  # '['와 ']'를 제외한 부분을 분리
+                    categories = [category.strip() for category in categories]  # 공백 제거
+
+                    # old_category와 일치하는 카테고리를 new_category로 변경
+                    categories = [new_category if category == old_category else category for category in categories]
+
+                    # 수정된 카테고리 리스트를 다시 문자열로 합침
+                    row[2] = f"[{', '.join(categories)}]"
+
                 rows.append(row)
 
     # 수정된 내용을 파일에 다시 저장
